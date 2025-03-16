@@ -49,93 +49,35 @@ st.markdown("""
 # Replace your current load_data function with this enhanced version
 
 @st.cache_data
-def load_data(file_path='Data/Womens Employment.xlsx'):
+def load_data(file_path='Data/Womens Employment.xlsx'):  # <- Changed to capital D in 'Data'
     """
-    Load and preprocess the women's employment dataset with enhanced error handling
+    Load and preprocess the women's employment dataset
     """
     try:
-        # Show file info before attempting to load
-        st.info(f"Attempting to load file: {file_path}")
-        file_size = os.path.getsize(file_path) if os.path.exists(file_path) else "File not found"
-        st.info(f"File size: {file_size} bytes")
+        # Show file info before loading
+        st.info(f"Loading from: {file_path}")
         
-        # Try pandas read_excel with explicit engine
-        try:
-            st.info("Trying pandas read_excel with openpyxl engine...")
-            df = pd.read_excel(file_path, engine='openpyxl')
-        except Exception as e1:
-            st.warning(f"First attempt failed with openpyxl: {str(e1)}")
-            try:
-                # Try with xlrd engine as fallback
-                st.info("Trying pandas read_excel with xlrd engine...")
-                df = pd.read_excel(file_path, engine='xlrd')
-            except Exception as e2:
-                st.warning(f"Second attempt failed with xlrd: {str(e2)}")
-                # Last resort - try without specifying engine
-                st.info("Trying pandas read_excel with default engine...")
-                df = pd.read_excel(file_path)
+        # Load the dataset
+        df = pd.read_excel(file_path)
         
-        # Verify dataframe was loaded
-        if df is None or df.empty:
-            st.error("Dataframe is empty after loading")
-            return None
-            
-        st.success(f"Successfully loaded dataframe with shape: {df.shape}")
-        st.info(f"Columns in the Excel file: {', '.join(df.columns.tolist())}")
+        # Extract years from column names
+        years = [str(year) for year in range(1991, 2024)]
+        id_vars = [col for col in df.columns if col not in years]
         
-        # Extract years from column names, with better error handling
-        try:
-            # Try to dynamically identify year columns
-            year_pattern = r'^\d{4}$'  # Pattern to match 4-digit years
-            years = [col for col in df.columns if re.match(year_pattern, str(col))]
-            
-            # If no year columns found, try a broader range
-            if not years:
-                years = [str(year) for year in range(1990, 2025) if str(year) in df.columns]
-            
-            # If still no years found, check if all columns are numeric
-            if not years:
-                numeric_cols = df.select_dtypes(include=['number']).columns
-                if len(numeric_cols) > 5:  # Assume these might be years if there are many numeric columns
-                    years = numeric_cols.tolist()
-            
-            st.info(f"Identified year columns: {', '.join(map(str, years))}")
-            
-            id_vars = [col for col in df.columns if col not in years]
-            st.info(f"Identified ID columns: {', '.join(map(str, id_vars))}")
-            
-            # Convert to long format
-            df_long = pd.melt(
-                df,
-                id_vars=id_vars,
-                value_vars=years,
-                var_name='Year',
-                value_name='Employment_Rate'
-            )
-            
-            # Convert Year to integer, with error handling
-            try:
-                df_long['Year'] = df_long['Year'].astype(int)
-            except ValueError:
-                st.warning("Could not convert Year column to integer. Attempting to clean values...")
-                # Try to extract numeric part of year
-                df_long['Year'] = df_long['Year'].astype(str).str.extract('(\d+)').astype(int)
+        # Convert to long format
+        df_long = pd.melt(
+            df,
+            id_vars=id_vars,
+            value_vars=years,
+            var_name='Year',
+            value_name='Employment_Rate'
+        )
         
-        except Exception as format_error:
-            st.error(f"Error during data formatting: {str(format_error)}")
-            # Try to show a sample of the dataframe to help diagnose
-            st.write("Sample of the raw dataframe:")
-            st.write(df.head())
-            return None
+        # Convert Year to integer
+        df_long['Year'] = df_long['Year'].astype(int)
         
         # Handle missing values
         df_long = df_long.dropna(subset=['Employment_Rate'])
-        
-        # Check if required columns exist
-        if 'Country Code' not in df_long.columns:
-            st.error("Required column 'Country Code' not found in the dataset.")
-            st.write("Available columns:", df_long.columns.tolist())
-            return None
         
         # Add region mapping
         region_mapping = {
@@ -169,13 +111,40 @@ def load_data(file_path='Data/Womens Employment.xlsx'):
             lambda x: 1 if x in ['Arab World', 'Middle East & North Africa'] else 0
         ).astype(int)
         
-        st.success(f"Data successfully processed. Final shape: {df_long.shape}")
+        st.success(f"Successfully loaded and processed data: {df_long.shape[0]} rows, {df_long['Country Code'].nunique()} countries")
         return df_long
         
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
+        
+        # Add more helpful error information
         import traceback
         st.error(f"Detailed error: {traceback.format_exc()}")
+        
+        # Check alternative paths
+        alternative_paths = [
+            'data/Womens Employment.xlsx',
+            'Data/Womens Employment.xlsx',
+            './Data/Womens Employment.xlsx',
+            './data/Womens Employment.xlsx',
+            'Womens Employment.xlsx'
+        ]
+        
+        for alt_path in alternative_paths:
+            if os.path.exists(alt_path) and alt_path != file_path:
+                st.info(f"Alternative file found at: {alt_path}. Trying to load...")
+                try:
+                    df = pd.read_excel(alt_path)
+                    st.success(f"Successfully loaded from alternative path: {alt_path}")
+                    # Now process this DataFrame using the same logic as above
+                    # (copy the processing code here)
+                    # ...
+                    
+                    # For brevity, we'll reload using the function itself
+                    return load_data(alt_path)
+                except Exception as alt_e:
+                    st.warning(f"Failed to load from alternative path: {str(alt_e)}")
+        
         return None
 
 def get_clean_historical_data(df, region=None, country_code=None, min_year=2000):
@@ -726,144 +695,62 @@ def main():
     st.markdown("<p style='text-align: center;'>Using machine learning for accurate and reliable predictions</p>", unsafe_allow_html=True)
     
     # Add model overview at the top
-    with st.expander("About This Predictive Model", expanded=False):
-        # Your existing model overview code...
-        pass
+    with st.expander("About This Predictive Model", expanded=True):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.markdown("""
+            ### How This Model Works
+            
+            This dashboard uses machine learning to predict future women's employment rates based on historical trends. Unlike simple linear extrapolation, our approach:
+            
+            1. **Evaluates Multiple Models**: The system tests Linear Regression, Ridge Regression, and Random Forest models to find the most accurate predictor.
+            
+            2. **Uses Advanced Features**: Instead of just extending a trend line, the model analyzes patterns like:
+               - Recent employment rates
+               - Rate of change over time
+               - Acceleration/deceleration of trends
+               - Statistical patterns in historical data
+            
+            3. **Selects the Best Model**: The model with the lowest prediction error on recent historical data is automatically selected to make future predictions.
+            
+            4. **Provides Confidence Intervals**: Predictions include uncertainty ranges that widen with time, acknowledging that longer-term predictions are less certain.
+            
+            This approach provides more reliable predictions for policy planning and analysis.
+            """)
+        
+        with col2:
+            st.markdown("""
+            ### Key Benefits
+            
+            - **Higher Accuracy**: Machine learning captures complex patterns
+            
+            - **Model Comparison**: Automatically selects the best prediction method
+            
+            - **Feature Importance**: Reveals what drives employment trends
+            
+            - **Uncertainty Quantification**: Shows confidence intervals around predictions
+            
+            - **Data-Driven**: Adapts to different regional patterns
+            """)
+    
+    # Show debug info in sidebar
+    with st.sidebar.expander("Debug Info", expanded=False):
+        st.write(f"Working directory: {os.getcwd()}")
+        st.write(f"Files in directory: {os.listdir('.')}")
+        if os.path.exists('Data'):
+            st.write(f"Files in Data directory: {os.listdir('Data')}")
+        if os.path.exists('data'):
+            st.write(f"Files in data directory: {os.listdir('data')}")
     
     # Load data
     st.subheader("1. Data Loading")
     
-    # Detailed file inspection
-    st.write("### File Inspection")
+    # Target the specific path where we found the file
+    target_path = 'Data/Womens Employment.xlsx'  # Capital D in Data
     
-    # Create data directory if it doesn't exist
-    os.makedirs('data', exist_ok=True)
-    
-    # Enhanced debug information
-    with st.expander("Environment Debug Info", expanded=True):
-        import sys
-        st.write(f"Python version: {sys.version}")
-        st.write(f"pandas version: {pd.__version__}")
-        st.write(f"numpy version: {np.__version__}")
-        st.write(f"Working directory: {os.getcwd()}")
-        st.write(f"Files in root directory: {os.listdir('.')}")
-        if os.path.exists('data'):
-            st.write(f"Files in data directory: {os.listdir('data')}")
-        
-        # Check installed libraries related to Excel
-        try:
-            import openpyxl
-            st.write(f"openpyxl version: {openpyxl.__version__}")
-        except ImportError:
-            st.error("openpyxl not installed - required for reading .xlsx files")
-        
-        try:
-            import xlrd
-            st.write(f"xlrd version: {xlrd.__version__}")
-        except ImportError:
-            st.warning("xlrd not installed - may be needed for reading older .xls files")
-    
-    # Try to find the dataset in multiple locations
-    possible_paths = [
-        'Womens Employment.xlsx',
-        'data/Womens Employment.xlsx',
-        'Data/Womens Employment.xlsx',  # Note capitalized 'Data'
-        'Womens_Employment.xlsx',
-        './Womens Employment.xlsx',
-        './data/Womens Employment.xlsx'
-    ]
-    
-    # Add debug information about each path
-    path_status = {}
-    for path in possible_paths:
-        if os.path.exists(path):
-            try:
-                size = os.path.getsize(path)
-                path_status[path] = f"✅ Found, size: {size} bytes"
-            except Exception as e:
-                path_status[path] = f"❌ Error checking file: {str(e)}"
-        else:
-            path_status[path] = "❌ Not found"
-    
-    st.write("### File Path Check")
-    for path, status in path_status.items():
-        st.write(f"- **{path}**: {status}")
-    
-    # Attempt to load from data/Womens Employment.xlsx directly first
-    data_path = 'data/Womens Employment.xlsx'
-    df = None
-    
-    if os.path.exists(data_path):
-        st.info(f"Attempting to load from known path: {data_path}")
-        df = load_data(data_path)
-    
-    # If still not loaded, try other paths
-    if df is None:
-        for path in possible_paths:
-            if os.path.exists(path) and path != data_path:  # Skip the one we already tried
-                st.info(f"Trying to load from: {path}")
-                df = load_data(path)
-                if df is not None:
-                    st.success(f"Successfully loaded data from {path}")
-                    break
-    
-    # If still no dataset found, allow upload
-    if df is None:
-        st.warning("Could not load dataset from any known location. Please upload the Excel file.")
-        
-        # Instructions for upload
-        st.info("""
-        **Please upload your data file:**
-        1. Use the uploader below to select your Excel file
-        2. Once uploaded, the file will be saved to the app's storage
-        3. If successful, you can refresh the page and the app should find the file automatically
-        """)
-        
-        uploaded_file = st.file_uploader("Upload Women's Employment Dataset (Excel format)", type=['xlsx', 'xls'])
-        if uploaded_file is not None:
-            # Show details about the uploaded file
-            st.write(f"Uploaded file name: {uploaded_file.name}")
-            st.write(f"Uploaded file size: {uploaded_file.size} bytes")
-            
-            # Save to multiple potential locations to ensure it's found next time
-            save_paths = ['Womens Employment.xlsx', 'data/Womens Employment.xlsx']
-            
-            # Create a temporary file to inspect content
-            temp_path = "temp_uploaded_file.xlsx"
-            with open(temp_path, "wb") as f:
-                uploaded_bytes = uploaded_file.getvalue()
-                f.write(uploaded_bytes)
-            
-            st.info(f"Temporary file saved as {temp_path}")
-            
-            # Try to read the file to verify it's a valid Excel file
-            try:
-                temp_df = pd.read_excel(temp_path)
-                st.success(f"Successfully validated Excel file with {len(temp_df)} rows and {len(temp_df.columns)} columns")
-                
-                # Show preview of data
-                st.write("Preview of uploaded data:")
-                st.dataframe(temp_df.head())
-                
-                # Now save to permanent locations
-                for save_path in save_paths:
-                    # Ensure directory exists
-                    os.makedirs(os.path.dirname(save_path) if os.path.dirname(save_path) else '.', exist_ok=True)
-                    
-                    # Save the file
-                    with open(save_path, "wb") as f:
-                        f.write(uploaded_bytes)
-                
-                st.success(f"File uploaded successfully and saved to: {', '.join(save_paths)}")
-                
-                # Try to load the saved file
-                st.info("Attempting to load data from saved file...")
-                df = load_data(save_paths[0])
-                
-            except Exception as e:
-                st.error(f"Error validating Excel file: {str(e)}")
-                import traceback
-                st.error(f"Detailed error: {traceback.format_exc()}")
+    with st.spinner("Loading data..."):
+        df = load_data(target_path)
     
     # Continue if data is loaded
     if df is not None:
@@ -883,6 +770,20 @@ def main():
                 display_trend_predictions(selected_region, df)
     else:
         st.error("Unable to process data. Please check the dataset format or try uploading a different file.")
-
+        
+        # Provide data file upload option as fallback
+        st.warning("If the app can't find the data file, you can upload it manually:")
+        uploaded_file = st.file_uploader("Upload Women's Employment Dataset (Excel format)", type=['xlsx', 'xls'])
+        
+        if uploaded_file is not None:
+            # Save the file to the correct location with capital D in Data
+            os.makedirs('Data', exist_ok=True)
+            save_path = 'Data/Womens Employment.xlsx'
+            
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+                
+            st.success(f"File uploaded successfully and saved to {save_path}!")
+            st.info("Please refresh the page to load the data from the saved file.")
 if __name__ == "__main__":
     main()
