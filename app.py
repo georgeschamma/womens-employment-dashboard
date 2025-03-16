@@ -46,17 +46,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Replace your current load_data function with this enhanced version
-
 @st.cache_data
-def load_data(file_path='Data/Womens Employment.xlsx'):  # <- Changed to capital D in 'Data'
+def load_data(file_path='Data/Womens Employment.xlsx'):  # Using capital 'D' in Data
     """
     Load and preprocess the women's employment dataset
     """
     try:
-        # Show file info before loading
-        st.info(f"Loading from: {file_path}")
-        
         # Load the dataset
         df = pd.read_excel(file_path)
         
@@ -111,40 +106,10 @@ def load_data(file_path='Data/Womens Employment.xlsx'):  # <- Changed to capital
             lambda x: 1 if x in ['Arab World', 'Middle East & North Africa'] else 0
         ).astype(int)
         
-        st.success(f"Successfully loaded and processed data: {df_long.shape[0]} rows, {df_long['Country Code'].nunique()} countries")
         return df_long
         
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
-        
-        # Add more helpful error information
-        import traceback
-        st.error(f"Detailed error: {traceback.format_exc()}")
-        
-        # Check alternative paths
-        alternative_paths = [
-            'data/Womens Employment.xlsx',
-            'Data/Womens Employment.xlsx',
-            './Data/Womens Employment.xlsx',
-            './data/Womens Employment.xlsx',
-            'Womens Employment.xlsx'
-        ]
-        
-        for alt_path in alternative_paths:
-            if os.path.exists(alt_path) and alt_path != file_path:
-                st.info(f"Alternative file found at: {alt_path}. Trying to load...")
-                try:
-                    df = pd.read_excel(alt_path)
-                    st.success(f"Successfully loaded from alternative path: {alt_path}")
-                    # Now process this DataFrame using the same logic as above
-                    # (copy the processing code here)
-                    # ...
-                    
-                    # For brevity, we'll reload using the function itself
-                    return load_data(alt_path)
-                except Exception as alt_e:
-                    st.warning(f"Failed to load from alternative path: {str(alt_e)}")
-        
         return None
 
 def get_clean_historical_data(df, region=None, country_code=None, min_year=2000):
@@ -734,15 +699,6 @@ def main():
             - **Data-Driven**: Adapts to different regional patterns
             """)
     
-    # Show debug info in sidebar
-    with st.sidebar.expander("Debug Info", expanded=False):
-        st.write(f"Working directory: {os.getcwd()}")
-        st.write(f"Files in directory: {os.listdir('.')}")
-        if os.path.exists('Data'):
-            st.write(f"Files in Data directory: {os.listdir('Data')}")
-        if os.path.exists('data'):
-            st.write(f"Files in data directory: {os.listdir('data')}")
-    
     # Load data
     st.subheader("1. Data Loading")
     
@@ -783,7 +739,8 @@ def main():
             with open(save_path, "wb") as f:
                 f.write(uploaded_file.getbuffer())
                 
-            st.success(f"File uploaded successfully and saved to {save_path}!")
+            st.success(f"File uploaded successfully!")
             st.info("Please refresh the page to load the data from the saved file.")
+
 if __name__ == "__main__":
     main()
